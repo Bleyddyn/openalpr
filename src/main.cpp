@@ -45,7 +45,7 @@ MotionDetector motiondetector;
 bool do_motiondetection = true;
 
 /** Function Headers */
-bool detectandshow(Alpr* alpr, cv::Mat frame, std::string region, bool writeJson);
+bool detectandshow( Alpr* alpr, cv::Mat frame, std::string region, bool writeJson, int64_t frame_number = -1 );
 bool is_supported_image(std::string image_file);
 
 bool measureProcessingTime = false;
@@ -59,6 +59,7 @@ int main( int argc, const char** argv )
 {
   std::vector<std::string> filenames;
   std::string configFile = "";
+  std::string saveFileBasename = "";
   bool outputJson = false;
   int seektoms = 0;
   bool detectRegion = false;
@@ -76,6 +77,7 @@ int main( int argc, const char** argv )
   TCLAP::ValueArg<std::string> configFileArg("","config","Path to the openalpr.conf file",false, "" ,"config_file");
   TCLAP::ValueArg<std::string> templatePatternArg("p","pattern","Attempt to match the plate number against a plate pattern (e.g., md for Maryland, ca for California)",false, "" ,"pattern code");
   TCLAP::ValueArg<int> topNArg("n","topn","Max number of possible plate numbers to return.  Default=10",false, 10 ,"topN");
+  TCLAP::ValueArg<std::string> saveFrames("s","save_frames","Save all video frames with possible plate matches. Frame number will be appened to given name.",false, "" ,"output filename");
 
   TCLAP::SwitchArg jsonSwitch("j","json","Output recognition results in JSON format.  Default=off", cmd, false);
   TCLAP::SwitchArg debugSwitch("","debug","Enable debug output.  Default=off", cmd, false);
@@ -91,6 +93,7 @@ int main( int argc, const char** argv )
     cmd.add( configFileArg );
     cmd.add( fileArg );
     cmd.add( countryCodeArg );
+    cmd.add( saveFrames );
 
     
     if (cmd.parse( argc, argv ) == false)
@@ -111,6 +114,7 @@ int main( int argc, const char** argv )
     topn = topNArg.getValue();
     measureProcessingTime = clockSwitch.getValue();
 	do_motiondetection = motiondetect.getValue();
+    saveFileBasename = saveFrames.getValue();
   }
   catch (TCLAP::ArgException &e)    // catch any exceptions
   {
@@ -246,7 +250,15 @@ int main( int argc, const char** argv )
           
           if (framenum == 0)
             motiondetector.ResetMotionDetection(&frame);
-          detectandshow(&alpr, frame, "", outputJson);
+          bool plate_found = detectandshow(&alpr, frame, "", outputJson, framenum);
+
+          if( plate_found && !saveFileBasename.empty() )
+          {
+              std::stringstream ofilename;
+              ofilename << saveFileBasename << "_" << framenum << ".jpg";
+              cv::imwrite(ofilename.str(), frame);
+          }
+
           //create a 1ms delay
           sleep_ms(1);
           framenum++;
@@ -315,7 +327,7 @@ bool is_supported_image(std::string image_file)
 }
 
 
-bool detectandshow( Alpr* alpr, cv::Mat frame, std::string region, bool writeJson)
+bool detectandshow( Alpr* alpr, cv::Mat frame, std::string region, bool writeJson, int64_t frame_number )
 {
 
   timespec startTime;
@@ -337,7 +349,9 @@ bool detectandshow( Alpr* alpr, cv::Mat frame, std::string region, bool writeJso
   if (measureProcessingTime)
     std::cout << "Total Time to process image: " << totalProcessingTime << "ms." << std::endl;
   
-  
+  if( frame_number >= 0 )
+      results.frame_number = frame_number;
+
   if (writeJson)
   {
     std::cout << alpr->toJson( results ) << std::endl;

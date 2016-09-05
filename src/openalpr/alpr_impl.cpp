@@ -504,6 +504,8 @@ namespace alpr
     cJSON_AddNumberToObject(root,"img_width",	results.img_width	  );
     cJSON_AddNumberToObject(root,"img_height",	results.img_height	  );
     cJSON_AddNumberToObject(root,"processing_time_ms", results.total_processing_time_ms );
+    if( -1 != results.frame_number )
+        cJSON_AddNumberToObject(root,"frame_number", results.frame_number );
 
     // Add the regions of interest to the JSON
     cJSON *rois;
